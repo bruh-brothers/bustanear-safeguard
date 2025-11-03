@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bust An Ear - Welcome</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <style>
+    body {
+      background: linear-gradient(270deg, #777cfb, #85e1ec, #7dc6fa);
+      background-size: 1200% 1200%;
+      animation: gradientShift 28s ease infinite;
+      margin: 0;
+      font-family: 'Bubblegum Sans', cursive, Arial, sans-serif;
+      display: flex; align-items: center; justify-content: center; min-height: 100vh;
+    }
+    @keyframes gradientShift {
+      0%   { background-position:   0% 50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position:   0% 50%; }
+    }
+    .mainbox{
+      background: rgba(0,0,0,0.15);
+      border-radius: 28px;
+      box-shadow: 0 9px 32px #0006;
+      padding: 54px 44px;
+      text-align: center;
+      max-width: 480px;
+      width: 98%;
+    }
+    h1{font-size:2.3rem;color: #fff;margin-bottom:26px;}
+    .butts{display:flex; flex-direction:column; gap:20px;}
+    .sbtn, .adminbtn{
+      background: #fff2;
+      color: #16226b;
+      font-size: 1.127rem;
+      border: none;
+      border-radius: 11px;
+      padding: 18px 18px;
+      font-family: inherit;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 4px 13px #0002;
+      transition: background .16s, color .13s;
+    }
+    .sbtn:hover, .adminbtn:hover{ background: #6391cc; color: #fff;}
+    .adminbtn{display:none;background:#d5c225;color:#001e24;}
+    .adminbtn.show{display:block;}
+    .banwarn{color:#ca2626;font-weight:bold;margin-top:22px;}
+    .footer {
+      margin-top: 40px;
+      color: #eee;
+      font-size: 1.02rem;
+      text-align: center;
+    }
+    .footer a {
+      color: #ffda37;
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="mainbox">
+    <h1>Welcome to Bust An Ear</h1>
+    <div>Explore our soundboards using the buttons below.</div>
+    <div class="butts">
+      <button class="sbtn" onclick="go('soundboard-regular.html');">Regular Soundboard</button>
+      <button class="sbtn" onclick="go('soundboard-safe.html');">Safe Soundboard</button>
+      <button class="adminbtn" id="adminPanelBtn" onclick="go('admin-panel.html')">Admin Panel</button>
+    </div>
+    <div class="banwarn" id="banwarn"></div>
+    <div class="footer">
+      Ensure you've read our <a href="tac.md" target="_blank">Terms and Conditions</a> before using our soundboards.
+    </div>
+  </div>
+  <script>
+    // Cookie/util functions
+    function getCookie(n){ let m=document.cookie.match('(^| )'+n+'=([^;]*)'); return m?m[2]:undefined;}
+    function go(pg){window.location.href=pg;}
+
+    // Admin panel access
+    let atok = getCookie("baeadmin")||'';
+    if(atok.startsWith("Owner-")) document.getElementById("adminPanelBtn").classList.add("show");
+
+    // Ban handling: safe-only or full ban restricts
+    (function(){
+      let ban={};
+      try{ban=JSON.parse(localStorage.getItem("ban")||"{}");}catch(_){}
+      const now=Math.floor(Date.now()/1000);
+      if(ban.tier===2&&ban.expires>now){
+        // Safe-only
+        window.location.href = 'soundboard-safe.html';
+      }
+      if(ban.tier===3&&ban.expires>now){
+        document.querySelector('.mainbox').innerHTML='<h1>Banned</h1><div>Error 606: Request could not be completed.<br>Contact staff for assistance.</div>';
+        setTimeout(()=>{window.location.href="index.html";},3400);
+      }
+      if(ban.tier>=1 && ban.tier<3 && ban.expires>now){
+        // Display warning if any nonzero ban
+        let msg = "Notice: Your account currently has a restriction.<br>";
+        if(ban.tier===1) msg+="You are not permitted to upload public sounds.";
+        if(ban.tier===2) msg+="You can only use the Safe Soundboard.";
+        document.getElementById("banwarn").innerHTML = msg;
+      }
+    })();
+
+    // Auth check: if no access cookies from the admin login, bounce to index
+    (function(){
+      if(!getCookie("baekey") || !getCookie("baeadmin")){window.location.href="index.html";}
+    })();
+  </script>
+</body>
+</html>
