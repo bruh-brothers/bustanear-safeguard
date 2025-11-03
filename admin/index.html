@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {background: #23234a; min-height:100vh; color: #fff; margin:0; display:flex; align-items:center; justify-content:center; font-family:'Bubblegum Sans',cursive,Arial,sans-serif;}
+    .wrap{width:380px;background:#292a6a;box-shadow:0 8px 32px #000b;margin:24px;border-radius:20px;padding:34px 24px 28px;text-align:center;}
+    h1{margin:0 0 20px;}
+    input,button{font-family:inherit;font-size:1.04rem; border-radius:8px;padding:9px 12px;border:none;box-shadow:0 2px 10px #0002;}
+    input{margin-bottom:18px;width:80%;}
+    button{margin:0 5px 0 5px;background:#5e5fff;color:#fff;font-weight:700;}
+    .err{color:#ff4f73;margin:8px 0;}
+    .success{color:#32ff55;margin:8px 0;}
+    .progress{margin:17px 0 0 0;}
+    .locktime{color:#fa0;font-size:.98rem;}
+  </style>
+</head>
+<body>
+  <div class="wrap" id="box">
+    <h1>Admin Login</h1>
+    <div id="stage1">
+      <input type="text" id="adminid" placeholder="Enter Admin ID"/><br/>
+      <button onclick="checkAdminId()">Next</button>
+      <div class="err" id="err1"></div>
+    </div>
+    <div id="stage2" style="display:none">
+      <input type="password" id="pin" placeholder="Enter PIN"/><br/>
+      <button onclick="checkPin()">Login</button>
+      <div class="err" id="err2"></div>
+      <div class="progress" id="progress"></div>
+    </div>
+    <div class="success" id="success" style="display:none;"></div>
+  </div>
+  <script>
+    // Ban logic
+    function getBan() { try{return JSON.parse(localStorage.getItem("ban")||"null");}catch(_){return null;} }
+    (function(){
+      const ban=getBan();
+      const now = Math.floor(Date.now()/1000);
+      if(ban && ban.tier===3 && ban.expires>now){
+        document.body.innerHTML='<div class="wrap"><h1>Error 606</h1><p>Request could not be completed.</p></div>';
+        document.body.style.background="#c00012";
+        return;
+      }
+      if(ban && ban.tier===2 && ban.expires>now){
+        location.href='/soundboard-safe.html';
+        return;
+      }
+    })();
+
+    // Fetch admin JSON (can be a local file/data for demo)
+    let admins=[{"id":"mr-blue","tier":"Owner","pin":"25206900"}];
+    // In production: fetch('/data/admins.json').then(resp=>resp.json()).then(d=>admins=d.admins);
+
+    let attempt = parseInt(localStorage.getItem("id-attempts")||0,10);
+    let pinAttempt = parseInt(localStorage.getItem("pin-attempts")||0,10);
+    let idLockedUntil = parseInt(localStorage.getItem("id-locked-until")||0,10);
+    let pinLockedUntil = parseInt(localStorage.getItem("pin-locked-until")||0,10);
+
+    function showLock(seconds, which) {
+      document.getElementById(which=='id'?'err1':'err2').innerHTML = 'Too many failed attempts.<br/>Try again in <span class="locktime" id="lt'+which+'"></span>.';
+      let t = setInterval(()=>{
+        let now = Math.floor(Date.now()/1000);
+        let left = Math.max(0,parseInt(localStorage.getItem(which+'-locked-until'))-now);
+        document.getElementById("lt"+which).textContent = left+"s";
+        if(left<=0) {
+          clearInterval(t);
+          document.getElementById(which=='id'?'err1':'err2').textContent = '';
+          localStorage.setItem(which+'-attempts',0);
+        }
+      }, 900);
+    }
+    function block(type, reason, seconds, tier) {
+      const now = Math.floor(Date.now()/1000);
+      localStorage.setItem("ban", JSON.stringify({
+        tier: tier, expires: now + seconds, reason: reason, setBy: "system"
+      }));
+      window.location.href = "/index.html";
+    }
+    function attemptDiscipline(count, which) {
+      // returns lock seconds
+      if(count===3)return 60;
+      if(count===4)return 5*60;
+      if(count===5)return 30*60;
+      if(count===6)return 3600;
+      if(count===7)return 6*3600;
+      if(count===8)return 24*3600;
+      if(count===9)return 72*3600;
+      if(count>=10){
+        block('full banned','Too many admin login failures',365*24*3600,3);
+        return 365*24*3600;
+      }
+      return 0;
+    }
+    // Stage 1: AdminID
+    window.checkAdminId = function(){
+      let uid = document.getElementById("adminid").value.trim().toLowerCase();
+      if(idLockedUntil>Math.floor(Date.now()/1000)){
+        showLock(idLockedUntil-Math.floor(Date.now()/1000),'id');
+        return;
+      }
+      let found = admins.find(a=>a.id===uid);
+      if(!found){
+        attempt++;
+        localStorage.setItem("id-attempts",attempt);
+        let lockSecs = attemptDiscipline(attempt,'id');
+        if(lockSecs){
+          let until = Math.floor(Date.now()/1000)+lockSecs;
+          idLockedUntil=until;
+          localStorage.setItem("id-locked-until",until);
+          showLock(lockSecs,'id');
+        } else {
+          document.getElementById("err1").textContent = "We couldn't find that one.";
+        }
+        return;
+      }
+      localStorage.setItem("id-attempts",0); localStorage.setItem("id-locked-until",0);
+      window.foundAdmin = found;
+      document.getElementById("stage1").style.display = "none";
+      document.getElementById("stage2").style.display = "";
+      document.getElementById("pin").focus();
+    }
+    // Stage 2: PIN
+    window.checkPin = function(){
+      let pin = document.getElementById("pin").value.trim();
+      if(pinLockedUntil>Math.floor(Date.now()/1000)){
+        showLock(pinLockedUntil-Math.floor(Date.now()/1000),'pin');
+        return;
+      }
+      if(!window.foundAdmin) return;
+      if(window.foundAdmin.pin!==pin){
+        pinAttempt++;
+        localStorage.setItem("pin-attempts",pinAttempt);
+        let lockSecs = attemptDiscipline(pinAttempt,'pin');
+        if(lockSecs){
+          let until = Math.floor(Date.now()/1000)+lockSecs;
+          pinLockedUntil=until;
+          localStorage.setItem("pin-locked-until",until);
+          showLock(lockSecs,'pin');
+        } else {
+          document.getElementById("err2").textContent = "Invalid PIN.";
+        }
+        return;
+      }
+      localStorage.setItem("pin-attempts",0); localStorage.setItem("pin-locked-until",0);
+      // Success! Set tiered cookies
+      let expire = window.foundAdmin.tier==="Owner" 
+        ? "Fri, 31 Dec 9999 23:59:59 GMT"
+        : (new Date(Date.now()+10*24*3600*1000)).toUTCString();
+      document.cookie = "baeadmin="+window.foundAdmin.tier+"-"+window.foundAdmin.id+"; path=/; expires="+expire;
+      document.getElementById("success").style.display="";
+      document.getElementById("success").textContent = "Welcome "+window.foundAdmin.id+", Redirecting you now.";
+      setTimeout(()=>{window.location.href="/indexx.html";},1500);
+    }
+  </script>
+</body>
+</html>
